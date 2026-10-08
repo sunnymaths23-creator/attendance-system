@@ -25,7 +25,7 @@ button{cursor:pointer}
 .main{margin-left:250px;width:calc(100% - 250px);padding:28px;max-width:1600px}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:24px}
 .topbar h1{margin:0;font-size:28px}.topbar p{margin:5px 0 0;color:var(--muted)}
-.top-actions{display:flex;gap:9px;flex-wrap:wrap}
+.top-actions{display:flex;gap:9px;flex-wrap:wrap}.history-actions{display:flex;gap:6px}.history-actions .btn{padding:9px 11px}.history-actions .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn{border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:10px;padding:10px 14px;font-weight:700;box-shadow:0 3px 12px #00000008}
 .btn:hover{transform:translateY(-1px)}.btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:0}
 .btn.green{background:#ecfdf3;color:#15803d;border-color:#bbf7d0}.btn.red{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
@@ -48,6 +48,9 @@ table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:12px 13p
 .modal{background:#fff;border-radius:20px;max-width:620px;width:100%;padding:24px;box-shadow:0 30px 80px #0004;max-height:90vh;overflow:auto}.modal h2{margin-top:0}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.form-grid .full{grid-column:1/-1}
 .toast{position:fixed;right:24px;bottom:24px;background:#111827;color:#fff;padding:12px 16px;border-radius:11px;box-shadow:var(--shadow);display:none;z-index:100}.toast.show{display:block}
+.bulkbar{display:flex;align-items:center;gap:14px;padding:10px 0;flex-wrap:wrap}
+.selectall{display:flex;align-items:center;gap:7px;font-weight:600}
+.bulkbar .btn:disabled{opacity:.45;cursor:not-allowed}
 .notice{background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;padding:13px 15px;border-radius:12px;margin-bottom:16px}
 .search{max-width:300px}
 .small{font-size:12px}
@@ -73,6 +76,7 @@ table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:12px 13p
   <div class="topbar">
     <div><h1 id="pageTitle">Attendance Dashboard</h1><p id="pageSubtitle">Fast, simple attendance for all your classes.</p></div>
     <div class="top-actions">
+      <div class="history-actions"><button class="btn" id="undoBtn" onclick="undoAction()" disabled title="Undo last change">↶ Undo</button><button class="btn" id="redoBtn" onclick="redoAction()" disabled title="Redo last undone change">↷ Redo</button></div>
       <button class="btn" onclick="openStudentModal()">＋ Add Student</button>
       <button class="btn primary" onclick="go('attendance')">Take Attendance →</button>
     </div>
@@ -104,15 +108,20 @@ if(!db){
  db={courses:defaultCourses,students:oldNames.map((name,i)=>({id:uid(),name,reg:'',adm:'',courseId:'m101-kaul',active:true})),attendance:{}};
  save();
 }
-// Migrate older saved data that used the internal field name "reg".
-if(db && db.students){ db.students.forEach(s=>{ if(s.reg===undefined) s.reg=s.reg||''; delete s.reg; }); save(); }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+// Undo/redo history. Snapshots are kept for the current browser session.
+let historyPast=[],historyFuture=[],currentPage='dashboard',historyBusy=false;
+function cloneDb(){return JSON.parse(JSON.stringify(db))}
+function pushHistory(){if(historyBusy)return;historyPast.push(cloneDb());if(historyPast.length>30)historyPast.shift();historyFuture=[];updateHistoryButtons()}
+function undoAction(){if(!historyPast.length){toast('Nothing to undo');return}historyFuture.push(cloneDb());db=historyPast.pop();historyBusy=true;save();historyBusy=false;updateHistoryButtons();render(currentPage);toast('Undone')}
+function redoAction(){if(!historyFuture.length){toast('Nothing to redo');return}historyPast.push(cloneDb());db=historyFuture.pop();historyBusy=true;save();historyBusy=false;updateHistoryButtons();render(currentPage);toast('Redone')}
+function updateHistoryButtons(){const u=document.getElementById('undoBtn'),r=document.getElementById('redoBtn');if(u)u.disabled=!historyPast.length;if(r)r.disabled=!historyFuture.length}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function today(){return new Date().toISOString().slice(0,10)}
 function toast(msg){let t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
-function go(page){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page)); render(page)}
-function render(page='dashboard'){
+function go(page){currentPage=page;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page)); render(page)}
+function render(page='dashboard'){ currentPage=page;
  const titles={dashboard:['Attendance Dashboard','Your attendance at a glance.'],attendance:['Take Attendance','Mark the whole class present, then tap absentees.'],students:['Student Management','Add, edit or remove students without touching the HTML.'],courses:['Course Management','Manage your courses, campuses and identification rules.'],reports:['Attendance Reports','See attendance percentage by student and course.'],backup:['Backup & Export','Protect your data and move it to another computer.']};
  document.getElementById('pageTitle').textContent=titles[page][0];document.getElementById('pageSubtitle').textContent=titles[page][1];
  const c=document.getElementById('content');
@@ -160,11 +169,51 @@ function loadAttendance(){
  document.getElementById('attArea').innerHTML=`<div class="att-header"><div><h2>${esc(course.code)} — ${esc(course.campus||'General')}</h2><div class="muted">${students.length} students • ${esc(course.idType)} used</div></div><div><span class="badge green">Present: ${p}</span> <span class="badge red">Absent: ${a}</span></div></div>
  ${students.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Student</th><th>${esc(course.idType)}</th><th>Attendance</th></tr></thead><tbody>${students.map((s,i)=>`<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(course.idType==='REG No.'?s.reg:s.adm)||'<span class="muted">Not entered</span>'}</td><td><div class="status"><button class="p ${session.status[s.id]==='P'?'active':''}" onclick="setStatus('${s.id}','P')">✓ Present</button><button class="a ${session.status[s.id]==='A'?'active':''}" onclick="setStatus('${s.id}','A')">✕ Absent</button></div></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No students in this class yet.<br><button class="btn primary" style="margin-top:12px" onclick="openStudentModal()">＋ Add Student</button></div>`}`;
 }
-function setStatus(sid,status){const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);if(!db.attendance[key])db.attendance[key]={courseId:cid,date,status:{}};db.attendance[key].status[sid]=status;save();loadAttendance()}
-function markAll(status){const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);db.attendance[key]={courseId:cid,date,status:{}};getStudentsForCourse(cid).forEach(s=>db.attendance[key].status[s.id]=status);save();loadAttendance();toast(status==='P'?'Everyone marked Present':'Everyone marked Absent')}
+function setStatus(sid,status){pushHistory();const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);if(!db.attendance[key])db.attendance[key]={courseId:cid,date,status:{}};db.attendance[key].status[sid]=status;save();loadAttendance()}
+function markAll(status){pushHistory();const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);db.attendance[key]={courseId:cid,date,status:{}};getStudentsForCourse(cid).forEach(s=>db.attendance[key].status[s.id]=status);save();loadAttendance();toast(status==='P'?'Everyone marked Present':'Everyone marked Absent')}
+let selectedStudentIds=new Set();
+
+function toggleStudentSelection(id, checked){
+  if(checked) selectedStudentIds.add(id); else selectedStudentIds.delete(id);
+  updateBulkSelectionUI();
+}
+
+function toggleAllVisibleStudents(checked){
+  const q=(document.getElementById('studentSearch')?.value||'').toLowerCase();
+  const cid=document.getElementById('studentCourse')?.value||'';
+  const sort=document.getElementById('studentSort')?.value||'nameAsc';
+  let list=db.students.filter(s=>s.active&&(!cid||s.courseId===cid)&&[s.name,s.reg,s.adm].some(x=>(x||'').toLowerCase().includes(q)));
+  list.forEach(s=> checked ? selectedStudentIds.add(s.id) : selectedStudentIds.delete(s.id));
+  filterStudents();
+}
+
+function updateBulkSelectionUI(){
+  const n=selectedStudentIds.size;
+  const count=document.getElementById('selectedStudentCount');
+  if(count) count.textContent=`${n} selected`;
+  const btn=document.getElementById('bulkDeleteBtn');
+  if(btn) btn.disabled=n===0;
+  const boxes=[...document.querySelectorAll('.student-check')];
+  const all=boxes.length>0 && boxes.every(b=>b.checked);
+  const head=document.getElementById('selectAllStudents');
+  if(head){head.checked=all;head.indeterminate=!all && boxes.some(b=>b.checked);}
+}
+
+function bulkDeleteStudents(){
+  const ids=[...selectedStudentIds].filter(id=>db.students.some(s=>s.id===id&&s.active));
+  if(!ids.length){toast('No students selected');return;}
+  if(!confirm(`Delete ${ids.length} selected student${ids.length===1?'':'s'}? Existing attendance records will remain.`)) return;
+  pushHistory();
+  db.students.forEach(s=>{if(ids.includes(s.id)) s.active=false;});
+  selectedStudentIds.clear();
+  save();
+  filterStudents();
+  toast(`${ids.length} student${ids.length===1?'':'s'} removed`);
+}
+
 function renderStudents(){
   c=document.getElementById('content');
-  c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, REG No. or admission no." oninput="filterStudents()"></div><div class="field"><label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><div class="field"><label>Sort</label><select id="studentSort" onchange="filterStudents()"><option value="nameAsc">Name A–Z</option><option value="nameDesc">Name Z–A</option><option value="course">Course</option><option value="id">ID</option></select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button><button class="btn" onclick="openImportModal()">📥 Import File</button></div><div class="notice">📥 <b>Bulk import:</b> Select a course above, then upload a CSV or Excel file. Students from that file will be added directly to the selected course. The importer recognizes common columns such as <b>Name</b>, <b>REG No.</b> and <b>Admission No.</b>.</div><div id="studentTable"></div></div>`;
+  c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, REG No. or admission no." oninput="filterStudents()"></div><div class="field"><label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><div class="field"><label>Sort</label><select id="studentSort" onchange="filterStudents()"><option value="nameAsc">Name A–Z</option><option value="nameDesc">Name Z–A</option><option value="course">Course</option><option value="id">ID</option></select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button><button class="btn" onclick="openImportModal()">📥 Import File</button></div><div class="bulkbar"><label class="selectall"><input type="checkbox" id="selectAllStudents" onchange="toggleAllVisibleStudents(this.checked)"> Select all visible</label><span id="selectedStudentCount" class="muted">0 selected</span><button id="bulkDeleteBtn" class="btn red" onclick="bulkDeleteStudents()" disabled>🗑 Delete Selected</button></div><div class="notice">📥 <b>Bulk import:</b> Select a course above, then upload a CSV or Excel file. Students from that file will be added directly to the selected course. The importer recognizes common columns such as <b>Name</b>, <b>REG No.</b> and <b>Admission No.</b>.</div><div id="studentTable"></div></div>`;
   filterStudents();
 }
 function filterStudents(){
@@ -176,7 +225,11 @@ function filterStudents(){
     if(sort==='course'){ const ac=db.courses.find(x=>x.id===a.courseId)?.code||'',bc=db.courses.find(x=>x.id===b.courseId)?.code||''; return ac.localeCompare(bc,undefined,{sensitivity:'base'}) || (a.name||'').localeCompare(b.name||'',undefined,{sensitivity:'base'}); }
     const ai=(a.reg||a.adm||''),bi=(b.reg||b.adm||''); return ai.localeCompare(bi,undefined,{numeric:true,sensitivity:'base'});
   });
-  document.getElementById('studentTable').innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Course</th><th>REG No.</th><th>Admission No.</th><th>Actions</th></tr></thead><tbody>${list.length?list.map((s,i)=>{let cr=db.courses.find(x=>x.id===s.courseId);return `<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(cr?.code||'—')}<div class="small muted">${esc(cr?.campus||'General')}</div></td><td>${esc(s.reg)||'—'}</td><td>${esc(s.adm)||'—'}</td><td><button class="btn" onclick="openStudentModal('${s.id}')">Edit</button> <button class="btn red" onclick="removeStudent('${s.id}')">Delete</button></td></tr>`}).join(''):`<tr><td colspan="6" class="empty">No students found.</td></tr>`}</tbody></table></div>`;
+  const validVisibleIds=new Set(list.map(s=>s.id));
+  selectedStudentIds.forEach(id=>{if(!db.students.some(s=>s.id===id&&s.active)) selectedStudentIds.delete(id);});
+  document.getElementById('studentTable').innerHTML=`<div class="table-wrap"><table><thead><tr><th style="width:42px"><input type="checkbox" id="selectAllStudents" aria-label="Select all visible students" onchange="toggleAllVisibleStudents(this.checked)"></th><th>#</th><th>Name</th><th>Course</th><th>REG No.</th><th>Admission No.</th><th>Actions</th></tr></thead><tbody>${list.length?list.map((s,i)=>{let cr=db.courses.find(x=>x.id===s.courseId);return `<tr><td><input type="checkbox" class="student-check" data-id="${s.id}" ${selectedStudentIds.has(s.id)?'checked':''} onchange="toggleStudentSelection('${s.id}',this.checked)"></td><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(cr?.code||'—')}<div class="small muted">${esc(cr?.campus||'General')}</div></td><td>${esc(s.reg)||'—'}</td><td>${esc(s.adm)||'—'}</td><td><button class="btn" onclick="openStudentModal('${s.id}')">Edit</button> <button class="btn red" onclick="removeStudent('${s.id}')">Delete</button></td></tr>`}).join(''):`<tr><td colspan="7" class="empty">No students found.</td></tr>`}</tbody></table></div>`;
+  // Keep only active selections and update the selection controls.
+  updateBulkSelectionUI();
 }
 function openStudentModal(id=''){
   const s=db.students.find(x=>x.id===id)||{name:'',reg:'',adm:'',courseId:db.courses[0]?.id||'',active:true};
@@ -193,12 +246,13 @@ function openStudentModal(id=''){
 function saveStudent(id){
   const name=document.getElementById('fName').value.trim(),reg=document.getElementById('fReg').value.trim(),adm=document.getElementById('fAdm').value.trim(),courseId=document.getElementById('fCourse').value;
   if(!name||!courseId)return alert('Please enter the student name and select a course.');
+  pushHistory();
   if(id){let s=db.students.find(x=>x.id===id);Object.assign(s,{name,reg,adm,courseId})}else db.students.push({id:uid(),name,reg,adm,courseId,active:true});
   save();closeModal();filterStudents();toast(id?'Student updated':'Student added');
 }
 function removeStudent(id){
   const s=db.students.find(x=>x.id===id);if(!s)return;
-  if(confirm(`Delete ${s.name}? Attendance records already saved will remain.`)){s.active=false;save();filterStudents();toast('Student removed')}
+  if(confirm(`Delete ${s.name}? Attendance records already saved will remain.`)){pushHistory();s.active=false;save();filterStudents();toast('Student removed')}
 }
 function openImportModal(){
   const cid=document.getElementById('studentCourse')?.value||'';
@@ -253,7 +307,7 @@ async function importStudentsFile(){
     preview.innerHTML=`<div class="notice"><b>Preview:</b> ${imported.length} new students ready to import; ${skipped} duplicates skipped; ${invalid} rows without a student name skipped.</div>${imported.length?`<div class="table-wrap" style="max-height:260px;overflow:auto"><table><thead><tr><th>Name</th><th>${cr.idType}</th></tr></thead><tbody>${imported.slice(0,100).map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(cr.idType==='REG No.'?s.reg:s.adm)}</td></tr>`).join('')}</tbody></table></div>`:''}<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick='finishImport(${JSON.stringify(imported).replace(/'/g,"&#39;")})'>✓ Add ${imported.length} Students</button></div>`;
   }catch(e){alert(e.message||'Could not read the file.');}
 }
-function finishImport(items){db.students.push(...items);save();closeModal();filterStudents();toast(`${items.length} students imported successfully`)}
+function finishImport(items){if(!items.length){toast('No students to import');return}pushHistory();db.students.push(...items);save();closeModal();filterStudents();toast(`${items.length} students imported successfully`)}
 function renderCourses(){
  c=document.getElementById('content');
  c.innerHTML=`<div class="card"><div class="att-header"><div><h2>Your Courses</h2><div class="muted">Add or edit classes whenever your teaching load changes.</div></div><button class="btn primary" onclick="openCourseModal()">＋ Add Course</button></div><div class="table-wrap"><table><thead><tr><th>Course</th><th>Campus</th><th>Year</th><th>ID used</th><th>Students</th><th>Actions</th></tr></thead><tbody>${db.courses.map(x=>`<tr><td><b>${esc(x.code)}</b><div class="small muted">${esc(x.name)}</div></td><td>${esc(x.campus||'General')}</td><td>${esc(x.year)}</td><td><span class="badge gray">${esc(x.idType)}</span></td><td>${db.students.filter(s=>s.active&&s.courseId===x.id).length}</td><td><button class="btn" onclick="openCourseModal('${x.id}')">Edit</button> <button class="btn red" onclick="removeCourse('${x.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div></div>`;
@@ -272,13 +326,14 @@ function openCourseModal(id=''){
 function saveCourse(id){
  const code=document.getElementById('cCode').value.trim(),name=document.getElementById('cName').value.trim(),campus=document.getElementById('cCampus').value.trim(),year=document.getElementById('cYear').value,idType=document.getElementById('cIdType').value;
  if(!code)return alert('Course code is required.');
+ pushHistory();
  if(id)Object.assign(db.courses.find(x=>x.id===id),{code,name:name||code,campus,year,idType});
  else db.courses.push({id:uid(),code,name:name||code,campus,year,idType});
  save();closeModal();renderCourses();toast(id?'Course updated':'Course added');
 }
 function removeCourse(id){
  const count=db.students.filter(s=>s.active&&s.courseId===id).length;
- if(confirm(`Delete this course? ${count} active students are linked to it.`)){db.courses=db.courses.filter(x=>x.id!==id);db.students.forEach(s=>{if(s.courseId===id)s.active=false});save();renderCourses();toast('Course removed')}
+ if(confirm(`Delete this course? ${count} active students are linked to it.`)){pushHistory();db.courses=db.courses.filter(x=>x.id!==id);db.students.forEach(s=>{if(s.courseId===id)s.active=false});save();renderCourses();toast('Course removed')}
 }
 function renderReports(){
  const rows=db.students.filter(s=>s.active).map(s=>{
@@ -314,7 +369,7 @@ function downloadFile(content,name,type){const blob=new Blob([content],{type}),u
 function openModal(){document.getElementById('modalBackdrop').classList.add('show')}
 function closeModal(){document.getElementById('modalBackdrop').classList.remove('show')}
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
-render('dashboard');
+render('dashboard');updateHistoryButtons();
 </script>
 </body>
 </html>
