@@ -169,7 +169,7 @@ function renderStudents(){
 }
 function filterStudents(){
   const q=(document.getElementById('studentSearch')?.value||'').toLowerCase(),cid=document.getElementById('studentCourse')?.value||'',sort=document.getElementById('studentSort')?.value||'nameAsc';
-  let list=db.students.filter(s=>(!cid||s.courseId===cid)&&[s.name,s.reg,s.adm].some(x=>(x||'').toLowerCase().includes(q)));
+  let list=db.students.filter(s=>s.active&&(!cid||s.courseId===cid)&&[s.name,s.reg,s.adm].some(x=>(x||'').toLowerCase().includes(q)));
   list.sort((a,b)=>{
     if(sort==='nameAsc') return (a.name||'').localeCompare(b.name||'',undefined,{sensitivity:'base'});
     if(sort==='nameDesc') return (b.name||'').localeCompare(a.name||'',undefined,{sensitivity:'base'});
