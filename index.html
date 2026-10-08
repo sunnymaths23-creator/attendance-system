@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sunny Attendance Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#f4f7fb; --card:#fff; --ink:#172033; --muted:#718096; --primary:#4f46e5;
@@ -100,9 +101,11 @@ const defaultCourses=[
 const oldNames=["Nitesh","Ritu Kumari","Khushi Gautam","Manesh","Isha","Mukam","Sneha","Ruchika","Preeti","Sneha Grewal","Kirti","Sakshi","Mahak Kanwal","Nisha","Garima","Prabha Bishnoi","Sonam","Jigyaa","Himanshu","Kashish","Arzoo","Garbha Yadav","Mahi Dahiya","Nandini","Manpreet","Palak","Sumitra Lohar","Aniya","Divya Choudhary","Ayush Saroha","Khem Kumar","Ashvatar","Harish","Ritesh Janwal","Sandeep Kumar","Bhavishay","Anshul Sharma","Yaman","Ashish Kumar","Vansh","Vishvas","Kashi"];
 let db=JSON.parse(localStorage.getItem(KEY)||'null');
 if(!db){
- db={courses:defaultCourses,students:oldNames.map((name,i)=>({id:uid(),name,vreg:'',adm:'',courseId:'m101-kaul',active:true})),attendance:{}};
+ db={courses:defaultCourses,students:oldNames.map((name,i)=>({id:uid(),name,reg:'',adm:'',courseId:'m101-kaul',active:true})),attendance:{}};
  save();
 }
+// Migrate older saved data that used the internal field name "reg".
+if(db && db.students){ db.students.forEach(s=>{ if(s.reg===undefined) s.reg=s.reg||''; delete s.reg; }); save(); }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
@@ -155,40 +158,102 @@ function loadAttendance(){
  db.attendance[key]={courseId:cid,date,status:session.status};save();
  let p=students.filter(s=>session.status[s.id]==='P').length,a=students.length-p;
  document.getElementById('attArea').innerHTML=`<div class="att-header"><div><h2>${esc(course.code)} — ${esc(course.campus||'General')}</h2><div class="muted">${students.length} students • ${esc(course.idType)} used</div></div><div><span class="badge green">Present: ${p}</span> <span class="badge red">Absent: ${a}</span></div></div>
- ${students.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Student</th><th>${esc(course.idType)}</th><th>Attendance</th></tr></thead><tbody>${students.map((s,i)=>`<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(course.idType==='REG No.'?s.vreg:s.adm)||'<span class="muted">Not entered</span>'}</td><td><div class="status"><button class="p ${session.status[s.id]==='P'?'active':''}" onclick="setStatus('${s.id}','P')">✓ Present</button><button class="a ${session.status[s.id]==='A'?'active':''}" onclick="setStatus('${s.id}','A')">✕ Absent</button></div></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No students in this class yet.<br><button class="btn primary" style="margin-top:12px" onclick="openStudentModal()">＋ Add Student</button></div>`}`;
+ ${students.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Student</th><th>${esc(course.idType)}</th><th>Attendance</th></tr></thead><tbody>${students.map((s,i)=>`<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(course.idType==='REG No.'?s.reg:s.adm)||'<span class="muted">Not entered</span>'}</td><td><div class="status"><button class="p ${session.status[s.id]==='P'?'active':''}" onclick="setStatus('${s.id}','P')">✓ Present</button><button class="a ${session.status[s.id]==='A'?'active':''}" onclick="setStatus('${s.id}','A')">✕ Absent</button></div></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No students in this class yet.<br><button class="btn primary" style="margin-top:12px" onclick="openStudentModal()">＋ Add Student</button></div>`}`;
 }
 function setStatus(sid,status){const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);if(!db.attendance[key])db.attendance[key]={courseId:cid,date,status:{}};db.attendance[key].status[sid]=status;save();loadAttendance()}
 function markAll(status){const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);db.attendance[key]={courseId:cid,date,status:{}};getStudentsForCourse(cid).forEach(s=>db.attendance[key].status[s.id]=status);save();loadAttendance();toast(status==='P'?'Everyone marked Present':'Everyone marked Absent')}
 function renderStudents(){
- c=document.getElementById('content');
- c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, VREG or admission no." oninput="filterStudents()"></div><div class="field"><label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button></div><div id="studentTable"></div></div>`;
- filterStudents();
+  c=document.getElementById('content');
+  c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, REG No. or admission no." oninput="filterStudents()"></div><div class="field"><label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><div class="field"><label>Sort</label><select id="studentSort" onchange="filterStudents()"><option value="nameAsc">Name A–Z</option><option value="nameDesc">Name Z–A</option><option value="course">Course</option><option value="id">ID</option></select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button><button class="btn" onclick="openImportModal()">📥 Import File</button></div><div class="notice">📥 <b>Bulk import:</b> Select a course above, then upload a CSV or Excel file. Students from that file will be added directly to the selected course. The importer recognizes common columns such as <b>Name</b>, <b>REG No.</b> and <b>Admission No.</b>.</div><div id="studentTable"></div></div>`;
+  filterStudents();
 }
 function filterStudents(){
- const q=(document.getElementById('studentSearch')?.value||'').toLowerCase(),cid=document.getElementById('studentCourse')?.value||'';
- const list=db.students.filter(s=>(!cid||s.courseId===cid)&&[s.name,s.vreg,s.adm].some(x=>(x||'').toLowerCase().includes(q)));
- document.getElementById('studentTable').innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Course</th><th>REG No.</th><th>Admission No.</th><th>Actions</th></tr></thead><tbody>${list.length?list.map((s,i)=>{let cr=db.courses.find(x=>x.id===s.courseId);return `<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(cr?.code||'—')}<div class="small muted">${esc(cr?.campus||'General')}</div></td><td>${esc(s.vreg)||'—'}</td><td>${esc(s.adm)||'—'}</td><td><button class="btn" onclick="openStudentModal('${s.id}')">Edit</button> <button class="btn red" onclick="removeStudent('${s.id}')">Delete</button></td></tr>`}).join(''):`<tr><td colspan="6" class="empty">No students found.</td></tr>`}</tbody></table></div>`;
+  const q=(document.getElementById('studentSearch')?.value||'').toLowerCase(),cid=document.getElementById('studentCourse')?.value||'',sort=document.getElementById('studentSort')?.value||'nameAsc';
+  let list=db.students.filter(s=>(!cid||s.courseId===cid)&&[s.name,s.reg,s.adm].some(x=>(x||'').toLowerCase().includes(q)));
+  list.sort((a,b)=>{
+    if(sort==='nameAsc') return (a.name||'').localeCompare(b.name||'',undefined,{sensitivity:'base'});
+    if(sort==='nameDesc') return (b.name||'').localeCompare(a.name||'',undefined,{sensitivity:'base'});
+    if(sort==='course'){ const ac=db.courses.find(x=>x.id===a.courseId)?.code||'',bc=db.courses.find(x=>x.id===b.courseId)?.code||''; return ac.localeCompare(bc,undefined,{sensitivity:'base'}) || (a.name||'').localeCompare(b.name||'',undefined,{sensitivity:'base'}); }
+    const ai=(a.reg||a.adm||''),bi=(b.reg||b.adm||''); return ai.localeCompare(bi,undefined,{numeric:true,sensitivity:'base'});
+  });
+  document.getElementById('studentTable').innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Course</th><th>REG No.</th><th>Admission No.</th><th>Actions</th></tr></thead><tbody>${list.length?list.map((s,i)=>{let cr=db.courses.find(x=>x.id===s.courseId);return `<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(cr?.code||'—')}<div class="small muted">${esc(cr?.campus||'General')}</div></td><td>${esc(s.reg)||'—'}</td><td>${esc(s.adm)||'—'}</td><td><button class="btn" onclick="openStudentModal('${s.id}')">Edit</button> <button class="btn red" onclick="removeStudent('${s.id}')">Delete</button></td></tr>`}).join(''):`<tr><td colspan="6" class="empty">No students found.</td></tr>`}</tbody></table></div>`;
 }
 function openStudentModal(id=''){
- const s=db.students.find(x=>x.id===id)||{name:'',vreg:'',adm:'',courseId:db.courses[0]?.id||'',active:true};
- document.getElementById('modal').innerHTML=`<h2>${id?'Edit Student':'Add Student'}</h2><div class="form-grid">
- <div class="field full"><label>Student Name</label><input id="fName" value="${esc(s.name)}" placeholder="Full name"></div>
- <div class="field"><label>REG No. (1st year)</label><input id="fVreg" value="${esc(s.vreg)}" placeholder="Optional"></div>
- <div class="field"><label>Admission No. (2nd/3rd)</label><input id="fAdm" value="${esc(s.adm)}" placeholder="Optional"></div>
- <div class="field full"><label>Course / Class</label><select id="fCourse">${courseOptions(s.courseId)}</select></div>
- </div><div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveStudent('${id}')">Save Student</button></div>`;
- openModal();
+  const s=db.students.find(x=>x.id===id)||{name:'',reg:'',adm:'',courseId:db.courses[0]?.id||'',active:true};
+  const cr=db.courses.find(x=>x.id===s.courseId);
+  document.getElementById('modal').innerHTML=`<h2>${id?'Edit Student':'Add Student'}</h2><div class="form-grid">
+  <div class="field full"><label>Student Name</label><input id="fName" value="${esc(s.name)}" placeholder="Full name"></div>
+  <div class="field"><label>REG No. <span class="muted">(Registration Number)</span></label><input id="fReg" value="${esc(s.reg)}" placeholder="For 1st year courses"></div>
+  <div class="field"><label>Admission No. <span class="muted">(2nd/3rd year)</span></label><input id="fAdm" value="${esc(s.adm)}" placeholder="For 2nd/3rd year courses"></div>
+  <div class="field full"><label>Course / Class</label><select id="fCourse">${courseOptions(s.courseId)}</select></div>
+  <div class="notice full">The course determines which identification number is normally used: <b>REG No. (Registration Number)</b> for 1st year and <b>Admission No.</b> for 2nd/3rd year.</div>
+  </div><div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveStudent('${id}')">Save Student</button></div>`;
+  openModal();
 }
 function saveStudent(id){
- const name=document.getElementById('fName').value.trim(),vreg=document.getElementById('fVreg').value.trim(),adm=document.getElementById('fAdm').value.trim(),courseId=document.getElementById('fCourse').value;
- if(!name||!courseId)return alert('Please enter the student name and select a course.');
- if(id){let s=db.students.find(x=>x.id===id);Object.assign(s,{name,vreg,adm,courseId})}else db.students.push({id:uid(),name,vreg,adm,courseId,active:true});
- save();closeModal();filterStudents();toast(id?'Student updated':'Student added');
+  const name=document.getElementById('fName').value.trim(),reg=document.getElementById('fReg').value.trim(),adm=document.getElementById('fAdm').value.trim(),courseId=document.getElementById('fCourse').value;
+  if(!name||!courseId)return alert('Please enter the student name and select a course.');
+  if(id){let s=db.students.find(x=>x.id===id);Object.assign(s,{name,reg,adm,courseId})}else db.students.push({id:uid(),name,reg,adm,courseId,active:true});
+  save();closeModal();filterStudents();toast(id?'Student updated':'Student added');
 }
 function removeStudent(id){
- const s=db.students.find(x=>x.id===id);if(!s)return;
- if(confirm(`Delete ${s.name}? Attendance records already saved will remain.`)){s.active=false;save();filterStudents();toast('Student removed')}
+  const s=db.students.find(x=>x.id===id);if(!s)return;
+  if(confirm(`Delete ${s.name}? Attendance records already saved will remain.`)){s.active=false;save();filterStudents();toast('Student removed')}
 }
+function openImportModal(){
+  const cid=document.getElementById('studentCourse')?.value||'';
+  if(!cid)return alert('Please select the course first. The uploaded students will be assigned directly to that course.');
+  const cr=db.courses.find(x=>x.id===cid);
+  document.getElementById('modal').innerHTML=`<h2>📥 Import Students</h2><p class="muted">Course: <b>${esc(cr.code)} — ${esc(cr.campus||'General')}</b></p><div class="notice">Upload <b>Excel (.xlsx/.xls)</b> or <b>CSV (.csv)</b>. The first sheet is used for Excel. Recommended columns: <b>Student Name</b>, <b>REG No.</b>, <b>Admission No.</b>. If the file has no headers, the first column is treated as the name and the second as the relevant ID.</div><div class="field"><label>Choose file</label><input type="file" id="studentImportFile" accept=".xlsx,.xls,.csv,.tsv"></div><div class="small muted" style="margin-top:8px">Duplicates with the same name + ID already in this course will be skipped.</div><div id="importPreview" style="margin-top:14px"></div><div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="importStudentsFile()">Preview & Import</button></div>`;
+  openModal();
+}
+function normalizeHeader(v){return String(v??'').toLowerCase().replace(/[.\-_\/]/g,' ').replace(/\s+/g,' ').trim()}
+function findColumn(row,aliases){
+  const keys=Object.keys(row); for(const k of keys){const n=normalizeHeader(k); if(aliases.some(a=>n===a||n.includes(a))) return k;} return null;
+}
+function parseCsv(text){
+  const rows=[]; let row=[],cell='',quoted=false;
+  for(let i=0;i<text.length;i++){const ch=text[i],next=text[i+1]; if(quoted){if(ch==='"'&&next==='"'){cell+='"';i++;}else if(ch==='"')quoted=false;else cell+=ch;}else{if(ch==='"')quoted=true;else if(ch===','){row.push(cell);cell='';}else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}else if(ch!=='\r')cell+=ch;}}
+  row.push(cell); if(row.some(x=>x!==''))rows.push(row); return rows;
+}
+function rowsFromCsv(text){
+  const rows=parseCsv(text); if(!rows.length)return []; const headers=rows[0].map(x=>String(x).trim());
+  const hasHeader=headers.some(h=>['name','student name','student','reg no','reg no.','registration number','admission no','admission no.','admission number'].includes(normalizeHeader(h)));
+  return hasHeader?rows.slice(1).filter(r=>r.some(x=>String(x??'').trim())).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??'']))):rows.filter(r=>r.some(x=>String(x??'').trim())).map(r=>({Name:r[0]??'',ID:r[1]??''}));
+}
+async function readImportFile(file){
+  const name=file.name.toLowerCase();
+  if(name.endsWith('.csv')||name.endsWith('.tsv')){const text=await file.text(); return rowsFromCsv(name.endsWith('.tsv')?text.replace(/\t/g,','):text);}
+  if(!window.XLSX)throw new Error('Excel reader could not load. Please use CSV, or refresh the page and try the Excel file again.');
+  const data=await file.arrayBuffer(); const wb=XLSX.read(data,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(ws,{defval:''});
+}
+async function importStudentsFile(){
+  const file=document.getElementById('studentImportFile')?.files?.[0]; if(!file)return alert('Please choose an Excel or CSV file.');
+  const cid=document.getElementById('studentCourse')?.value||''; const cr=db.courses.find(x=>x.id===cid); if(!cr)return alert('Please select a course first.');
+  try{
+    const rows=await readImportFile(file); if(!rows.length)return alert('No student rows were found in the file.');
+    const nameAliases=['name','student name','student','studentname','candidate name'];
+    const regAliases=['reg no','reg no.','registration no','registration number','registration no.','reg number','reg'];
+    const admAliases=['admission no','admission no.','admission number','admission id','admission'];
+    const sample=rows[0]; const nameCol=findColumn(sample,nameAliases); const regCol=findColumn(sample,regAliases); const admCol=findColumn(sample,admAliases); const genericId=findColumn(sample,['id','student id','roll no','roll number']);
+    const imported=[]; let skipped=0,invalid=0;
+    rows.forEach(r=>{
+      const name=String((nameCol?r[nameCol]:(r.Name??r.name??Object.values(r)[0]??''))??'').trim();
+      let reg=String((regCol?r[regCol]:'')??'').trim(), adm=String((admCol?r[admCol]:'')??'').trim();
+      if(!reg&&!adm&&genericId){if(cr.idType==='REG No.')reg=String(r[genericId]??'').trim();else adm=String(r[genericId]??'').trim();}
+      if(!name){invalid++;return;}
+      if(cr.idType==='REG No.' && !reg && adm)reg=adm;
+      if(cr.idType==='Admission No.' && !adm && reg)adm=reg;
+      const idValue=(cr.idType==='REG No.'?reg:adm).toLowerCase();
+      const duplicate=db.students.some(s=>s.active&&s.courseId===cid&&(s.name||'').trim().toLowerCase()===name.toLowerCase()&&((cr.idType==='REG No.'?s.reg:s.adm)||'').trim().toLowerCase()===idValue);
+      if(duplicate){skipped++;return;}
+      imported.push({id:uid(),name,reg,adm,courseId:cid,active:true});
+    });
+    const preview=document.getElementById('importPreview');
+    preview.innerHTML=`<div class="notice"><b>Preview:</b> ${imported.length} new students ready to import; ${skipped} duplicates skipped; ${invalid} rows without a student name skipped.</div>${imported.length?`<div class="table-wrap" style="max-height:260px;overflow:auto"><table><thead><tr><th>Name</th><th>${cr.idType}</th></tr></thead><tbody>${imported.slice(0,100).map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(cr.idType==='REG No.'?s.reg:s.adm)}</td></tr>`).join('')}</tbody></table></div>`:''}<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick='finishImport(${JSON.stringify(imported).replace(/'/g,"&#39;")})'>✓ Add ${imported.length} Students</button></div>`;
+  }catch(e){alert(e.message||'Could not read the file.');}
+}
+function finishImport(items){db.students.push(...items);save();closeModal();filterStudents();toast(`${items.length} students imported successfully`)}
 function renderCourses(){
  c=document.getElementById('content');
  c.innerHTML=`<div class="card"><div class="att-header"><div><h2>Your Courses</h2><div class="muted">Add or edit classes whenever your teaching load changes.</div></div><button class="btn primary" onclick="openCourseModal()">＋ Add Course</button></div><div class="table-wrap"><table><thead><tr><th>Course</th><th>Campus</th><th>Year</th><th>ID used</th><th>Students</th><th>Actions</th></tr></thead><tbody>${db.courses.map(x=>`<tr><td><b>${esc(x.code)}</b><div class="small muted">${esc(x.name)}</div></td><td>${esc(x.campus||'General')}</td><td>${esc(x.year)}</td><td><span class="badge gray">${esc(x.idType)}</span></td><td>${db.students.filter(s=>s.active&&s.courseId===x.id).length}</td><td><button class="btn" onclick="openCourseModal('${x.id}')">Edit</button> <button class="btn red" onclick="removeCourse('${x.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div></div>`;
@@ -231,7 +296,7 @@ function renderReportTable(rows){
 }
 function exportCSV(){
  let out=[['Student','Course','Campus','Year','ID Type','REG No.','Admission No.','Classes','Present','Attendance %']];
- db.students.filter(s=>s.active).forEach(s=>{let cr=db.courses.find(x=>x.id===s.courseId),total=0,p=0;Object.values(db.attendance).forEach(x=>{if(x.courseId===s.courseId&&x.status?.[s.id]){total++;if(x.status[s.id]==='P')p++}});out.push([s.name,cr?.code||'',cr?.campus||'',cr?.year||'',cr?.idType||'',s.vreg,s.adm,total,p,total?(p/total*100).toFixed(1):''])});
+ db.students.filter(s=>s.active).forEach(s=>{let cr=db.courses.find(x=>x.id===s.courseId),total=0,p=0;Object.values(db.attendance).forEach(x=>{if(x.courseId===s.courseId&&x.status?.[s.id]){total++;if(x.status[s.id]==='P')p++}});out.push([s.name,cr?.code||'',cr?.campus||'',cr?.year||'',cr?.idType||'',s.reg,s.adm,total,p,total?(p/total*100).toFixed(1):''])});
 downloadFile(out.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\\n'),'attendance_report.csv','text/csv');
 }
 function renderBackup(){
