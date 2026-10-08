@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sunny Attendance Hub</title>
+<style>
+:root{
+  --bg:#f4f7fb; --card:#fff; --ink:#172033; --muted:#718096; --primary:#4f46e5;
+  --primary2:#7c3aed; --green:#16a34a; --red:#dc2626; --amber:#d97706;
+  --border:#e5e7eb; --shadow:0 14px 40px rgba(31,41,55,.09);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(135deg,#f7f9ff,#eef6ff);color:var(--ink)}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{display:flex;min-height:100vh}
+.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0;z-index:10}
+.brand{display:flex;align-items:center;gap:12px;padding:4px 10px 28px}
+.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#6366f1,#a855f7);display:grid;place-items:center;font-weight:900;box-shadow:0 8px 25px #4f46e566}
+.brand h2{font-size:17px;margin:0}.brand small{color:#9ca3af}
+.nav button{width:100%;border:0;background:transparent;color:#cbd5e1;text-align:left;padding:13px 14px;border-radius:11px;margin:3px 0;font-weight:600}
+.nav button:hover,.nav button.active{background:#ffffff14;color:#fff}
+.main{margin-left:250px;width:calc(100% - 250px);padding:28px;max-width:1600px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:24px}
+.topbar h1{margin:0;font-size:28px}.topbar p{margin:5px 0 0;color:var(--muted)}
+.top-actions{display:flex;gap:9px;flex-wrap:wrap}
+.btn{border:1px solid var(--border);background:#fff;color:var(--ink);border-radius:10px;padding:10px 14px;font-weight:700;box-shadow:0 3px 12px #00000008}
+.btn:hover{transform:translateY(-1px)}.btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;border:0}
+.btn.green{background:#ecfdf3;color:#15803d;border-color:#bbf7d0}.btn.red{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+.grid{display:grid;gap:18px}.stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+.card{background:var(--card);border:1px solid #e9edf4;border-radius:18px;padding:20px;box-shadow:var(--shadow)}
+.stat{display:flex;justify-content:space-between;align-items:center}.stat .num{font-size:30px;font-weight:850}.stat .label{color:var(--muted);font-size:13px}.stat-icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:#eef2ff;font-size:21px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:16px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:170px}.field label{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.04em}
+input,select{width:100%;padding:11px 12px;border:1px solid #dbe1ea;border-radius:10px;background:#fff;outline:none}
+input:focus,select:focus{border-color:#818cf8;box-shadow:0 0 0 3px #6366f122}
+.att-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.att-header h2{margin:0;font-size:20px}.muted{color:var(--muted)}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:13px}
+table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:12px 13px;border-bottom:1px solid #eef1f5;text-align:left}th{background:#f8fafc;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0}tr:last-child td{border-bottom:0}
+.status{display:flex;gap:7px}.status button{padding:7px 11px;border-radius:9px;border:1px solid var(--border);font-weight:800;background:#fff}.status .p.active{background:#dcfce7;color:#15803d;border-color:#86efac}.status .a.active{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800}.badge.green{background:#dcfce7;color:#15803d}.badge.red{background:#fee2e2;color:#b91c1c}.badge.gray{background:#f1f5f9;color:#475569}
+.progress{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}.progress>div{height:100%;background:linear-gradient(90deg,#22c55e,#14b8a6);border-radius:999px}
+.empty{padding:45px;text-align:center;color:var(--muted)}
+.modal-backdrop{position:fixed;inset:0;background:#0f172a99;display:none;align-items:center;justify-content:center;z-index:50;padding:20px}.modal-backdrop.show{display:flex}
+.modal{background:#fff;border-radius:20px;max-width:620px;width:100%;padding:24px;box-shadow:0 30px 80px #0004;max-height:90vh;overflow:auto}.modal h2{margin-top:0}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.form-grid .full{grid-column:1/-1}
+.toast{position:fixed;right:24px;bottom:24px;background:#111827;color:#fff;padding:12px 16px;border-radius:11px;box-shadow:var(--shadow);display:none;z-index:100}.toast.show{display:block}
+.notice{background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;padding:13px 15px;border-radius:12px;margin-bottom:16px}
+.search{max-width:300px}
+.small{font-size:12px}
+@media(max-width:900px){.sidebar{width:72px;padding:18px 10px}.brand div:not(.logo),.nav span{display:none}.brand{padding-left:5px}.main{margin-left:72px;width:calc(100% - 72px);padding:18px}.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.stats{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}.topbar{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand"><div class="logo">SA</div><div><h2>Sunny Attendance</h2><small>Faculty Hub</small></div></div>
+  <nav class="nav">
+    <button class="active" data-page="dashboard">📊 <span>Dashboard</span></button>
+    <button data-page="attendance">✅ <span>Take Attendance</span></button>
+    <button data-page="students">👥 <span>Students</span></button>
+    <button data-page="courses">📚 <span>Courses</span></button>
+    <button data-page="reports">📈 <span>Reports</span></button>
+    <button data-page="backup">💾 <span>Backup / Export</span></button>
+  </nav>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div><h1 id="pageTitle">Attendance Dashboard</h1><p id="pageSubtitle">Fast, simple attendance for all your classes.</p></div>
+    <div class="top-actions">
+      <button class="btn" onclick="openStudentModal()">＋ Add Student</button>
+      <button class="btn primary" onclick="go('attendance')">Take Attendance →</button>
+    </div>
+  </div>
+  <div id="content"></div>
+</main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY='sunnyAttendanceV1';
+// University ID rule: course codes 101 and 103 are first-year courses and use REG No.; 2nd/3rd-year courses use Admission No.\nconst defaultCourses=[
+ {id:'m101-kaul',code:'MATH 101',name:'Mathematics 101',campus:'Kaul',year:'1st Year',idType:'REG No.'},
+ {id:'m101-hisar',code:'MATH 101',name:'Mathematics 101',campus:'Hisar College',year:'1st Year',idType:'REG No.'},
+ {id:'m101-kishanpura',code:'MATH 101',name:'Mathematics 101',campus:'Kishanpura College',year:'1st Year',idType:'REG No.'},
+ {id:'comp202',code:'COMP 202',name:'Computer 202',campus:'',year:'2nd Year',idType:'Admission No.'},
+ {id:'comp301',code:'COMP 301',name:'Computer 301',campus:'',year:'3rd Year',idType:'Admission No.'},
+ {id:'m103',code:'MATH 103',name:'Mathematics 103',campus:'',year:'1st Year',idType:'REG No.'},
+ {id:'m203',code:'MATH 203',name:'Mathematics 203',campus:'',year:'2nd Year',idType:'Admission No.'}
+];
+const oldNames=["Nitesh","Ritu Kumari","Khushi Gautam","Manesh","Isha","Mukam","Sneha","Ruchika","Preeti","Sneha Grewal","Kirti","Sakshi","Mahak Kanwal","Nisha","Garima","Prabha Bishnoi","Sonam","Jigyaa","Himanshu","Kashish","Arzoo","Garbha Yadav","Mahi Dahiya","Nandini","Manpreet","Palak","Sumitra Lohar","Aniya","Divya Choudhary","Ayush Saroha","Khem Kumar","Ashvatar","Harish","Ritesh Janwal","Sandeep Kumar","Bhavishay","Anshul Sharma","Yaman","Ashish Kumar","Vansh","Vishvas","Kashi"];
+let db=JSON.parse(localStorage.getItem(KEY)||'null');
+if(!db){
+ db={courses:defaultCourses,students:oldNames.map((name,i)=>({id:uid(),name,vreg:'',adm:'',courseId:'m101-kaul',active:true})),attendance:{}};
+ save();
+}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function today(){return new Date().toISOString().slice(0,10)}
+function toast(msg){let t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
+function go(page){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page)); render(page)}
+function render(page='dashboard'){
+ const titles={dashboard:['Attendance Dashboard','Your attendance at a glance.'],attendance:['Take Attendance','Mark the whole class present, then tap absentees.'],students:['Student Management','Add, edit or remove students without touching the HTML.'],courses:['Course Management','Manage your courses, campuses and identification rules.'],reports:['Attendance Reports','See attendance percentage by student and course.'],backup:['Backup & Export','Protect your data and move it to another computer.']};
+ document.getElementById('pageTitle').textContent=titles[page][0];document.getElementById('pageSubtitle').textContent=titles[page][1];
+ const c=document.getElementById('content');
+ ({dashboard:renderDashboard,attendance:renderAttendance,students:renderStudents,courses:renderCourses,reports:renderReports,backup:renderBackup}[page])();
+}
+function renderDashboard(){
+ const totalStudents=db.students.filter(s=>s.active).length;
+ const totalClasses=Object.keys(db.attendance).length;
+ let p=0,a=0;Object.values(db.attendance).forEach(x=>Object.values(x.status||{}).forEach(v=>v==='P'?p++:v==='A'&&a++));
+ c=document.getElementById('content');
+ c.innerHTML=`<div class="grid stats">
+  <div class="card stat"><div><div class="label">Active Students</div><div class="num">${totalStudents}</div></div><div class="stat-icon">👥</div></div>
+  <div class="card stat"><div><div class="label">Courses</div><div class="num">${db.courses.length}</div></div><div class="stat-icon">📚</div></div>
+  <div class="card stat"><div><div class="label">Attendance Sessions</div><div class="num">${totalClasses}</div></div><div class="stat-icon">🗓️</div></div>
+  <div class="card stat"><div><div class="label">Present Records</div><div class="num">${p}</div></div><div class="stat-icon">✅</div></div>
+ </div>
+ <div style="height:18px"></div>
+ <div class="card"><div class="att-header"><div><h2>Start today's attendance</h2><div class="muted">Choose your class and mark attendance in seconds.</div></div><button class="btn primary" onclick="go('attendance')">Open Attendance</button></div>
+ <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">${db.courses.map(x=>`<div class="card" style="box-shadow:none;background:#f8fafc"><b>${esc(x.code)}</b><div class="small muted">${esc(x.campus||'General')} • ${esc(x.year)}</div><div style="margin-top:10px"><span class="badge gray">${esc(x.idType)}</span></div></div>`).join('')}</div></div>
+ <div style="height:18px"></div>
+ <div class="notice">💡 <b>Fast method:</b> attendance starts with everyone marked Present. Only tap <b>Absent</b> for students who are not in class.<br><br>
+<b>ID rule:</b> First-year courses with code <b>101</b> or <b>103</b> use <b>REG No.</b>. Second- and third-year courses use <b>Admission No.</b>.</div>`;
+}
+function courseOptions(selected=''){return db.courses.map(x=>`<option value="${x.id}" ${x.id===selected?'selected':''}>${esc(x.code)} — ${esc(x.campus||'General')} (${esc(x.year)})</option>`).join('')}
+function renderAttendance(){
+ c=document.getElementById('content');
+ c.innerHTML=`<div class="card"><div class="toolbar">
+ <div class="field" style="flex:1"><label>Course / Class</label><select id="attCourse" onchange="loadAttendance()">${courseOptions()}</select></div>
+ <div class="field"><label>Date</label><input type="date" id="attDate" value="${today()}" onchange="loadAttendance()"></div>
+ <button class="btn green" onclick="markAll('P')">✓ Mark All Present</button>
+ <button class="btn red" onclick="markAll('A')">× Mark All Absent</button>
+ </div>
+ <div id="attArea"></div></div>`;
+ loadAttendance();
+}
+function getStudentsForCourse(cid){return db.students.filter(s=>s.active&&s.courseId===cid)}
+function sessionKey(cid,date){return cid+'|'+date}
+function loadAttendance(){
+ const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);
+ const students=getStudentsForCourse(cid), session=db.attendance[key]||{status:{}};
+ const course=db.courses.find(x=>x.id===cid);
+ students.forEach(s=>{if(!session.status[s.id])session.status[s.id]='P'});
+ db.attendance[key]={courseId:cid,date,status:session.status};save();
+ let p=students.filter(s=>session.status[s.id]==='P').length,a=students.length-p;
+ document.getElementById('attArea').innerHTML=`<div class="att-header"><div><h2>${esc(course.code)} — ${esc(course.campus||'General')}</h2><div class="muted">${students.length} students • ${esc(course.idType)} used</div></div><div><span class="badge green">Present: ${p}</span> <span class="badge red">Absent: ${a}</span></div></div>
+ ${students.length?`<div class="table-wrap"><table><thead><tr><th>#</th><th>Student</th><th>${esc(course.idType)}</th><th>Attendance</th></tr></thead><tbody>${students.map((s,i)=>`<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(course.idType==='REG No.'?s.vreg:s.adm)||'<span class="muted">Not entered</span>'}</td><td><div class="status"><button class="p ${session.status[s.id]==='P'?'active':''}" onclick="setStatus('${s.id}','P')">✓ Present</button><button class="a ${session.status[s.id]==='A'?'active':''}" onclick="setStatus('${s.id}','A')">✕ Absent</button></div></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No students in this class yet.<br><button class="btn primary" style="margin-top:12px" onclick="openStudentModal()">＋ Add Student</button></div>`}`;
+}
+function setStatus(sid,status){const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);if(!db.attendance[key])db.attendance[key]={courseId:cid,date,status:{}};db.attendance[key].status[sid]=status;save();loadAttendance()}
+function markAll(status){const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);db.attendance[key]={courseId:cid,date,status:{}};getStudentsForCourse(cid).forEach(s=>db.attendance[key].status[s.id]=status);save();loadAttendance();toast(status==='P'?'Everyone marked Present':'Everyone marked Absent')}
+function renderStudents(){
+ c=document.getElementById('content');
+ c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, VREG or admission no." oninput="filterStudents()"></div><div class="field"><label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button></div><div id="studentTable"></div></div>`;
+ filterStudents();
+}
+function filterStudents(){
+ const q=(document.getElementById('studentSearch')?.value||'').toLowerCase(),cid=document.getElementById('studentCourse')?.value||'';
+ const list=db.students.filter(s=>(!cid||s.courseId===cid)&&[s.name,s.vreg,s.adm].some(x=>(x||'').toLowerCase().includes(q)));
+ document.getElementById('studentTable').innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Course</th><th>REG No.</th><th>Admission No.</th><th>Actions</th></tr></thead><tbody>${list.length?list.map((s,i)=>{let cr=db.courses.find(x=>x.id===s.courseId);return `<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(cr?.code||'—')}<div class="small muted">${esc(cr?.campus||'General')}</div></td><td>${esc(s.vreg)||'—'}</td><td>${esc(s.adm)||'—'}</td><td><button class="btn" onclick="openStudentModal('${s.id}')">Edit</button> <button class="btn red" onclick="removeStudent('${s.id}')">Delete</button></td></tr>`}).join(''):`<tr><td colspan="6" class="empty">No students found.</td></tr>`}</tbody></table></div>`;
+}
+function openStudentModal(id=''){
+ const s=db.students.find(x=>x.id===id)||{name:'',vreg:'',adm:'',courseId:db.courses[0]?.id||'',active:true};
+ document.getElementById('modal').innerHTML=`<h2>${id?'Edit Student':'Add Student'}</h2><div class="form-grid">
+ <div class="field full"><label>Student Name</label><input id="fName" value="${esc(s.name)}" placeholder="Full name"></div>
+ <div class="field"><label>REG No. (1st year)</label><input id="fVreg" value="${esc(s.vreg)}" placeholder="Optional"></div>
+ <div class="field"><label>Admission No. (2nd/3rd)</label><input id="fAdm" value="${esc(s.adm)}" placeholder="Optional"></div>
+ <div class="field full"><label>Course / Class</label><select id="fCourse">${courseOptions(s.courseId)}</select></div>
+ </div><div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveStudent('${id}')">Save Student</button></div>`;
+ openModal();
+}
+function saveStudent(id){
+ const name=document.getElementById('fName').value.trim(),vreg=document.getElementById('fVreg').value.trim(),adm=document.getElementById('fAdm').value.trim(),courseId=document.getElementById('fCourse').value;
+ if(!name||!courseId)return alert('Please enter the student name and select a course.');
+ if(id){let s=db.students.find(x=>x.id===id);Object.assign(s,{name,vreg,adm,courseId})}else db.students.push({id:uid(),name,vreg,adm,courseId,active:true});
+ save();closeModal();filterStudents();toast(id?'Student updated':'Student added');
+}
+function removeStudent(id){
+ const s=db.students.find(x=>x.id===id);if(!s)return;
+ if(confirm(`Delete ${s.name}? Attendance records already saved will remain.`)){s.active=false;save();filterStudents();toast('Student removed')}
+}
+function renderCourses(){
+ c=document.getElementById('content');
+ c.innerHTML=`<div class="card"><div class="att-header"><div><h2>Your Courses</h2><div class="muted">Add or edit classes whenever your teaching load changes.</div></div><button class="btn primary" onclick="openCourseModal()">＋ Add Course</button></div><div class="table-wrap"><table><thead><tr><th>Course</th><th>Campus</th><th>Year</th><th>ID used</th><th>Students</th><th>Actions</th></tr></thead><tbody>${db.courses.map(x=>`<tr><td><b>${esc(x.code)}</b><div class="small muted">${esc(x.name)}</div></td><td>${esc(x.campus||'General')}</td><td>${esc(x.year)}</td><td><span class="badge gray">${esc(x.idType)}</span></td><td>${db.students.filter(s=>s.active&&s.courseId===x.id).length}</td><td><button class="btn" onclick="openCourseModal('${x.id}')">Edit</button> <button class="btn red" onclick="removeCourse('${x.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+function openCourseModal(id=''){
+ const x=db.courses.find(c=>c.id===id)||{code:'',name:'',campus:'',year:'1st Year',idType:'REG No.'};
+ document.getElementById('modal').innerHTML=`<h2>${id?'Edit Course':'Add Course'}</h2><div class="form-grid">
+ <div class="field"><label>Course Code</label><input id="cCode" value="${esc(x.code)}" placeholder="e.g. MATH 101"></div>
+ <div class="field"><label>Course Name</label><input id="cName" value="${esc(x.name)}" placeholder="Mathematics 101"></div>
+ <div class="field"><label>College / Campus</label><input id="cCampus" value="${esc(x.campus)}" placeholder="Kaul"></div>
+ <div class="field"><label>Year</label><select id="cYear"><option ${x.year==='1st Year'?'selected':''}>1st Year</option><option ${x.year==='2nd Year'?'selected':''}>2nd Year</option><option ${x.year==='3rd Year'?'selected':''}>3rd Year</option></select></div>
+ <div class="field"><label>Student ID used</label><select id="cIdType"><option ${x.idType==='REG No.'?'selected':''}>REG No.</option><option ${x.idType==='Admission No.'?'selected':''}>Admission No.</option></select></div>
+ </div><div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveCourse('${id}')">Save Course</button></div>`;
+ openModal();
+}
+function saveCourse(id){
+ const code=document.getElementById('cCode').value.trim(),name=document.getElementById('cName').value.trim(),campus=document.getElementById('cCampus').value.trim(),year=document.getElementById('cYear').value,idType=document.getElementById('cIdType').value;
+ if(!code)return alert('Course code is required.');
+ if(id)Object.assign(db.courses.find(x=>x.id===id),{code,name:name||code,campus,year,idType});
+ else db.courses.push({id:uid(),code,name:name||code,campus,year,idType});
+ save();closeModal();renderCourses();toast(id?'Course updated':'Course added');
+}
+function removeCourse(id){
+ const count=db.students.filter(s=>s.active&&s.courseId===id).length;
+ if(confirm(`Delete this course? ${count} active students are linked to it.`)){db.courses=db.courses.filter(x=>x.id!==id);db.students.forEach(s=>{if(s.courseId===id)s.active=false});save();renderCourses();toast('Course removed')}
+}
+function renderReports(){
+ const rows=db.students.filter(s=>s.active).map(s=>{
+   let total=0,p=0;Object.values(db.attendance).forEach(x=>{if(x.courseId===s.courseId&&x.status?.[s.id]){total++;if(x.status[s.id]==='P')p++}});
+   const pct=total?p/total*100:0,cr=db.courses.find(x=>x.id===s.courseId);
+   return {s,total,p,pct,cr};
+ }).sort((a,b)=>a.pct-b.pct);
+ c=document.getElementById('content');
+ c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="reportSearch" placeholder="Student name..." oninput="renderReportTable()"></div><button class="btn" onclick="exportCSV()">⬇ Export CSV</button></div><div id="reportTable"></div></div>`;renderReportTable(rows);
+}
+function renderReportTable(rows){
+ rows=rows||db.students.filter(s=>s.active).map(s=>{let total=0,p=0;Object.values(db.attendance).forEach(x=>{if(x.courseId===s.courseId&&x.status?.[s.id]){total++;if(x.status[s.id]==='P')p++}});return{s,total,p,pct:total?p/total*100:0,cr:db.courses.find(x=>x.id===s.courseId)}}).sort((a,b)=>a.pct-b.pct);
+ const q=(document.getElementById('reportSearch')?.value||'').toLowerCase();rows=rows.filter(r=>r.s.name.toLowerCase().includes(q));
+ document.getElementById('reportTable').innerHTML=`<div class="table-wrap"><table><thead><tr><th>Student</th><th>Course</th><th>Classes</th><th>Present</th><th>Attendance</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.s.name)}</b></td><td>${esc(r.cr?.code||'—')}</td><td>${r.total}</td><td>${r.p}</td><td style="min-width:170px"><b>${r.total?r.pct.toFixed(1)+'%':'—'}</b>${r.total?`<div class="progress" style="margin-top:7px"><div style="width:${r.pct}%"></div></div>`:''}</td></tr>`).join('')||`<tr><td colspan="5" class="empty">No data yet. Take some attendance first.</td></tr>`}</tbody></table></div>`;
+}
+function exportCSV(){
+ let out=[['Student','Course','Campus','Year','ID Type','REG No.','Admission No.','Classes','Present','Attendance %']];
+ db.students.filter(s=>s.active).forEach(s=>{let cr=db.courses.find(x=>x.id===s.courseId),total=0,p=0;Object.values(db.attendance).forEach(x=>{if(x.courseId===s.courseId&&x.status?.[s.id]){total++;if(x.status[s.id]==='P')p++}});out.push([s.name,cr?.code||'',cr?.campus||'',cr?.year||'',cr?.idType||'',s.vreg,s.adm,total,p,total?(p/total*100).toFixed(1):''])});
+downloadFile(out.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\\n'),'attendance_report.csv','text/csv');
+}
+function renderBackup(){
+ c=document.getElementById('content');
+ c.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+ <div class="card"><h2>💾 Backup</h2><p class="muted">Your data is saved automatically in this browser. Export a backup before changing computer/browser.</p><button class="btn primary" onclick="backup()">Download Backup JSON</button></div>
+ <div class="card"><h2>↩ Restore</h2><p class="muted">Restore students, courses and attendance from a previous backup.</p><input type="file" id="restoreFile" accept=".json" onchange="restore(event)"></div>
+ <div class="card"><h2>📊 Excel/CSV</h2><p class="muted">Download a CSV attendance summary that opens directly in Excel.</p><button class="btn" onclick="exportCSV()">Download Attendance CSV</button></div>
+ </div>
+ <div style="height:18px"></div><div class="notice">🔐 <b>Privacy:</b> this first version stores data in your browser's local storage. It does not send your student data to a server. Keep a backup because clearing browser data can remove it.</div>`;
+}
+function backup(){downloadFile(JSON.stringify(db,null,2),'sunny-attendance-backup.json','application/json');toast('Backup downloaded')}
+function restore(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const x=JSON.parse(reader.result);if(!x.students||!x.courses||!x.attendance)throw 0;if(confirm('Replace current data with this backup?')){db=x;save();render('dashboard');toast('Backup restored')}}catch{alert('Invalid attendance backup file.')}};reader.readAsText(file)}
+function downloadFile(content,name,type){const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}
+function openModal(){document.getElementById('modalBackdrop').classList.add('show')}
+function closeModal(){document.getElementById('modalBackdrop').classList.remove('show')}
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
+render('dashboard');
+</script>
+</body>
+</html>
