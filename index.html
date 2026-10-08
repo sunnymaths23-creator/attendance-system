@@ -4,7 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sunny Attendance Hub</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><script>
+// Lifetime academic structure: Session -> Semester -> Course.
+// Existing data remains compatible; new course records may use session/semester fields.
+(function(){
+  const KEY='sunnyAttendanceV1';
+  function get(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}}
+  function save(d){localStorage.setItem(KEY,JSON.stringify(d));}
+  function migrate(){
+    const d=get(); d.sessions=d.sessions||{};
+    const years=[2026,2027,2028,2029,2030,2031,2032,2033,2034,2035];
+    years.forEach(y=>{const k=y+'-'+String((y+1)%100).padStart(2,'0'); if(!d.sessions[k]) d.sessions[k]={semesters:{}}; for(let sem=1;sem<=8;sem++) d.sessions[k].semesters[sem]=d.sessions[k].semesters[sem]||{courses:[]};});
+    d.settings=d.settings||{}; d.settings.currentSession=d.settings.currentSession||'2026-27'; d.settings.currentSemester=d.settings.currentSemester||'1';
+    save(d);
+  }
+  migrate();
+})();
+</script>
+</script>
 <style>
 :root{
   --bg:#f4f7fb; --card:#fff; --ink:#172033; --muted:#718096; --primary:#4f46e5;
@@ -213,7 +230,9 @@ function bulkDeleteStudents(){
 
 function renderStudents(){
   c=document.getElementById('content');
-  c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, REG No. or admission no." oninput="filterStudents()"></div><div class="field"><label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><div class="field"><label>Sort</label><select id="studentSort" onchange="filterStudents()"><option value="nameAsc">Name A–Z</option><option value="nameDesc">Name Z–A</option><option value="course">Course</option><option value="id">ID</option></select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button><button class="btn" onclick="openImportModal()">📥 Import File</button></div><div class="bulkbar"><label class="selectall"><input type="checkbox" id="selectAllStudents" onchange="toggleAllVisibleStudents(this.checked)"> Select all visible</label><span id="selectedStudentCount" class="muted">0 selected</span><button id="bulkDeleteBtn" class="btn red" onclick="bulkDeleteStudents()" disabled>🗑 Delete Selected</button></div><div class="notice">📥 <b>Bulk import:</b> Select a course above, then upload a CSV or Excel file. Students from that file will be added directly to the selected course. The importer recognizes common columns such as <b>Name</b>, <b>REG No.</b> and <b>Admission No.</b>.</div><div id="studentTable"></div></div>`;
+  c.innerHTML=`<div class="card"><div class="toolbar"><div class="field search"><label>Search</label><input id="studentSearch" placeholder="Name, REG No. or admission no." oninput="filterStudents()"></div><div class="field"><label>Session</label><select id="sessionSelect"><option>2026-27</option><option>2027-28</option><option>2028-29</option><option>2029-30</option><option>2030-31</option></select>
+<label>Semester</label><select id="semesterSelect"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
+<label>Course</label><select id="studentCourse" onchange="filterStudents()"><option value="">All courses</option>${courseOptions()}</select></div><div class="field"><label>Sort</label><select id="studentSort" onchange="filterStudents()"><option value="nameAsc">Name A–Z</option><option value="nameDesc">Name Z–A</option><option value="course">Course</option><option value="id">ID</option></select></div><button class="btn primary" onclick="openStudentModal()">＋ Add Student</button><button class="btn" onclick="openImportModal()">📥 Import File</button></div><div class="bulkbar"><label class="selectall"><input type="checkbox" id="selectAllStudents" onchange="toggleAllVisibleStudents(this.checked)"> Select all visible</label><span id="selectedStudentCount" class="muted">0 selected</span><button id="bulkDeleteBtn" class="btn red" onclick="bulkDeleteStudents()" disabled>🗑 Delete Selected</button></div><div class="notice">📥 <b>Bulk import:</b> Select a course above, then upload a CSV or Excel file. Students from that file will be added directly to the selected course. The importer recognizes common columns such as <b>Name</b>, <b>REG No.</b> and <b>Admission No.</b>.</div><div id="studentTable"></div></div>`;
   filterStudents();
 }
 function filterStudents(){
