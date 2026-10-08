@@ -152,7 +152,7 @@ function getStudentsForCourse(cid){return db.students.filter(s=>s.active&&s.cour
 function sessionKey(cid,date){return cid+'|'+date}
 function loadAttendance(){
  const cid=document.getElementById('attCourse').value,date=document.getElementById('attDate').value,key=sessionKey(cid,date);
- const students=getStudentsForCourse(cid), session=db.attendance[key]||{status:{}};
+ const students=getStudentsForCourse(cid).sort((a,b)=>(a.name||'').localeCompare(b.name||'',undefined,{sensitivity:'base'})), session=db.attendance[key]||{status:{}};
  const course=db.courses.find(x=>x.id===cid);
  students.forEach(s=>{if(!session.status[s.id])session.status[s.id]='P'});
  db.attendance[key]={courseId:cid,date,status:session.status};save();
